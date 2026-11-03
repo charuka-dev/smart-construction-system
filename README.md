@@ -167,11 +167,7 @@ Covers registration, login, project creation and approval, blueprint upload, roo
 Charuka Lakshan
 - GitHub: @charuka-dev
 - LinkedIn: Charuka Lakshan<!-- Add names / GitHub profiles of your 4 members -->
-
-## License
-
-MIT
-
+  
 ---
 
 ## Screenshots
