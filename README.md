@@ -1,108 +1,233 @@
-# BuildSync-3D
+# BuildSync-3D — Smart Construction System
 
-Smart Construction Management & 3D Visualization System.
+A dual-portal construction management platform that bridges the gap between
+contractors and clients. Upload a 2D floor plan, get an interactive 3D model,
+customize finishes in real time, and follow construction progress and spending
+day by day.
 
-## Repository layout
+
+> Final-year project, HND in Software Engineering (NIBM). 
+
+
+
+![Track Progress](docs/screenshots/client/05-track-progress.jpeg)
+![3D model view](docs/screenshots/client/06-3d-model.jpeg)
+![Design customization](docs/screenshots/client/07-customize.jpeg)
+
+## Features
+
+**Client**
+- Create a project with a cost estimate and upload a floor plan
+- Interactive 3D model generated from the uploaded blueprint
+- Customize wall colours, floor tiles and cupboard styles, with live 3D preview
+- Track daily progress, with the active work area shown in 3D
+- Daily and monthly cost views, quality inspection results, safety reports
+- Private chat with the contractor
+
+**Contractor (Admin)**
+- Approve or reject project requests, set timelines and milestones
+- Create supervisor accounts, activate or deactivate users
+- Create cost estimates, set budgets, review daily expenses
+- Review quality and safety reports, message clients and supervisors
+
+**Supervisor**
+- Upload daily progress with photos, log daily costs
+- Record quality inspections and safety incidents
+- Project analytics (completion rate, delays, budget vs actual)
+
+## How the blueprint-to-3D pipeline works
 
 ```
-site-vision-portal/
-├── src/                 # React + TanStack Start frontend (see frontend/README.md)
-│   ├── components/      # UI building blocks
-│   ├── pages/           # role-organized page components
-│   │   ├── auth/  client/  contractor/  supervisor/  shared/
-│   ├── layouts/         # shell layouts
-│   ├── routes/          # TanStack Start file-based routes
-│   ├── hooks/  services/  contexts/  lib/  assets/  types/  utils/
-│
-├── frontend/            # docs-only mirror; real source is ../src/
-│
-├── backend/             # Node.js + Express + MySQL API
-│   ├── src/
-│   │   ├── config/  controllers/  services/  repositories/
-│   │   ├── middleware/  routes/  models/  validators/  utils/
-│   │   ├── uploads/{blueprints,progress-images,models}/
-│   │   └── server.js
-│   └── package.json
-│
-├── opencv-service/      # one-shot Python OpenCV pipeline
-│   ├── blueprint_parser.py     # entrypoint
-│   ├── wall_detection.py
-│   ├── room_detection.py
-│   ├── model_generator.py
-│   ├── requirements.txt
-│   └── output/
-│
-├── database/            # canonical SQL
-│   ├── schema.sql
-│   ├── seed.sql
-│   └── migrations/
-│
-├── docs/
-│   ├── proposal/  diagrams/  api/  reports/
-│
-├── docker-compose.yml
-├── package.json         # root: frontend build (Lovable runs this)
-└── README.md
+Floor plan image → OpenCV (Python) → room polygons (JSON) → MySQL → Three.js geometry
 ```
 
-## Why `src/` is at the repo root, not under `frontend/`
+1. The image is thresholded so walls and room interiors separate.
+2. Connected-components analysis finds each enclosed region. The region touching the image border is the exterior and is discarded.
+3. Each room contour is simplified into a polygon and scaled to metres.
+4. The frontend extrudes each polygon into a floor mesh and wall meshes.
 
-The frontend is **TanStack Start**, whose Vite plugin requires the
-route tree at `<repo-root>/src/routes/`. The Lovable preview sandbox
-also expects that exact layout. Moving the source into
-`frontend/src/` breaks both. `frontend/` exists as a placeholder so
-the repository structure matches the team architecture diagram, with
-the real frontend code at `src/`.
+**Scope note:** this is a classical computer vision pipeline (rule-based, no trained
+model). It works best on clean, digitally drawn plans with dark walls on a light
+background. Scanned, hand-drawn, or heavily annotated plans may not parse correctly.
+Learned floor-plan parsing (e.g. CubiCasa5K, RoomFormer) is planned as future work.
 
-## Run locally
+## Tech stack
 
-### 1. Frontend (Lovable preview or local dev)
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, TanStack Router, Tailwind CSS, shadcn/ui |
+| 3D | Three.js, React Three Fiber |
+| Backend | Node.js, Express, Zod, Multer |
+| Auth | JWT, bcrypt, role-based access control |
+| Database | MySQL / MariaDB |
+| CV pipeline | Python, OpenCV, NumPy |
 
+## Project structure
+
+```
+├── src/                  # React frontend
+│   ├── components/       # Scene3D, layout shells, UI components
+│   ├── routes/           # File-based routes (client / contractor / supervisor)
+│   └── lib/              # api.ts, store.tsx, types.ts
+├── backend/
+│   ├── src/              # Express app: routes, middleware, services, config
+│   ├── cv/               # OpenCV blueprint parser (Python)
+│   └── scripts/          # End-to-end API test
+├── database/             # schema.sql, seed.sql
+└── docs/
+```
+
+## System architecture
+
+![System architecture](docs/architecture/system-architecture.jpeg)
+## Getting started
+
+### Prerequisites
+Node.js 18+, MySQL or MariaDB, Python 3.10+
+
+### 1. Database
 ```bash
-bun install
-bun run dev
+mysql -u root -p -e "CREATE DATABASE buildsync3d"
+mysql -u root -p buildsync3d < database/schema.sql
+mysql -u root -p buildsync3d < database/seed.sql
 ```
 
-### 2. Backend
+### 2. CV pipeline
+```bash
+cd backend/cv
+python -m venv .venv
+.venv\Scripts\activate          # Windows  (macOS/Linux: source .venv/bin/activate)
+pip install -r requirements.txt
+```
 
+### 3. Backend
 ```bash
 cd backend
-cp .env.example .env   # edit DB creds + JWT_SECRET
 npm install
-npm run dev            # http://localhost:4000
+cp .env.example .env            # then edit values (see below)
+npm run dev                     # http://localhost:4000
 ```
 
-### 3. Database
-
+### 4. Frontend
 ```bash
-mysql -u root -p < database/schema.sql
-mysql -u root -p < database/seed.sql
+# from the project root
+npm install
+cp .env.example .env
+npm run dev                     # http://localhost:8080
 ```
 
-### 4. OpenCV service
+### Environment variables
 
-```bash
-cd opencv-service
-pip install -r requirements.txt
-# Invoked automatically by the backend on blueprint upload, or:
-python3 blueprint_parser.py path/to/blueprint.png
+`backend/.env`
+```env
+PORT=4000
+CORS_ORIGIN=http://localhost:8080
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=buildsync3d
+JWT_SECRET=<long-random-string>
+PYTHON_BIN=python        # use "py" on Windows if "python" isn't on PATH
+CV_MOCK=false            # true returns a fixed layout and ignores the uploaded image
 ```
 
-### 5. All-in-one (Docker)
-
-```bash
-docker compose up --build
-```
-
-## Switching the frontend to the real backend
-
-In `.env` at the repo root:
-
-```
+`.env` (frontend)
+```env
 VITE_API_BASE_URL=http://localhost:4000/api
-VITE_USE_MOCK=false
 ```
 
-With `VITE_USE_MOCK=true` (default) the frontend keeps using the
-in-memory mock store in `src/lib/store.tsx`, so the Lovable preview
-works without a running backend.
+## Demo accounts
+
+Password for all: `demo`
+
+| Role | Email |
+|---|---|
+| Client | client@demo.com |
+| Contractor | contractor@demo.com |
+| Supervisor | supervisor@demo.com |
+
+Public registration creates Client accounts only. Supervisors are created by the contractor.
+
+## Testing
+
+With the database running:
+```bash
+cd backend
+node scripts/e2e_test.mjs
+```
+Covers registration, login, project creation and approval, blueprint upload, room customization, quality/safety reports, messaging, and supervisor assignment.
+
+## Known limitations
+
+- Blueprint parsing is rule-based and limited to clean digital plans (see above).
+- Generated 3D rooms are extruded boxes, not detailed architectural models.
+- Login session is not restored after a page refresh.
+
+## Developer
+
+Charuka Lakshan
+- GitHub: @charuka-dev
+- LinkedIn: Charuka Lakshan<!-- Add names / GitHub profiles of your 4 members -->
+
+## License
+
+MIT
+
+---
+
+## Screenshots
+
+### Client portal
+
+<details open>
+<summary><b>View all 10 client pages</b></summary>
+<br>
+
+| | |
+|---|---|
+| ![Login](docs/screenshots/client/01-login.jpeg) | ![Register](docs/screenshots/client/02-register.jpeg) |
+| **Login** | **Register** |
+| ![Dashboard](docs/screenshots/client/03-dashboard.jpeg) | ![Create project](docs/screenshots/client/04-create-project.jpeg) |
+| **Dashboard** | **Create project** |
+| ![Track progress](docs/screenshots/client/05-track-progress.jpeg) | ![3D model](docs/screenshots/client/06-3d-model.jpeg) |
+| **Track progress** | **3D model** |
+| ![Customize design](docs/screenshots/client/07-customize.jpeg) | ![Cost estimate](docs/screenshots/client/08-cost-estimate.jpeg) |
+| **Customize design** | **Cost estimate** |
+| ![Quality inspection](docs/screenshots/client/09-quality-inspection.jpeg) | ![Safety issues](docs/screenshots/client/10-safety-issues.jpeg) |
+| **Quality inspection** | **Safety issues** |
+
+</details>
+
+### Contractor portal
+
+<details>
+<summary><b>View all 6 contractor pages</b></summary>
+<br>
+
+| | |
+|---|---|
+| ![Dashboard](docs/screenshots/contractor/01-dashboard.jpeg) | ![User management](docs/screenshots/contractor/02-user-management.jpeg) |
+| **Dashboard** | **User management** |
+| ![Project management](docs/screenshots/contractor/03-project-management.jpeg) | ![Cost and budget](docs/screenshots/contractor/04-cost-budget.jpeg) |
+| **Project management** | **Cost & budget** |
+| ![Quality and approval](docs/screenshots/contractor/05-quality-approval.jpeg) | ![Communication](docs/screenshots/contractor/06-communucation.jpeg) |
+| **Quality & approval** | **Communication** |
+
+</details>
+
+### Supervisor portal
+
+<details>
+<summary><b>View all 6 supervisor pages</b></summary>
+<br>
+
+| | |
+|---|---|
+| ![Dashboard](docs/screenshots/supervisor/01-dashboard.jpeg) | ![Daily progress](docs/screenshots/supervisor/02-daily-progress.jpeg) |
+| **Dashboard** | **Daily progress** |
+| ![Daily cost](docs/screenshots/supervisor/03-daily-cost.jpeg) | ![Quality inspection](docs/screenshots/supervisor/04-quality-inspection.jpeg) |
+| **Daily cost** | **Quality inspection** |
+| ![Safety issues](docs/screenshots/supervisor/05-safety-issues.jpeg) | ![Contractor chat](docs/screenshots/supervisor/06-contractor-chat.jpeg) |
+| **Safety issues** | **Contractor chat** |
+
+</details>
