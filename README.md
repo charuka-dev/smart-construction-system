@@ -11,7 +11,6 @@ day by day.
 
 
 ![Track Progress](docs/screenshots/client/05-track-progress.jpeg)
-![3D model view](docs/screenshots/client/06-3d-model.jpeg)
 ![Design customization](docs/screenshots/client/07-customize.jpeg)
 
 ## Features
